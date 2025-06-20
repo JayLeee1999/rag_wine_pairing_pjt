@@ -1,12 +1,16 @@
-import os
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_pinecone import PineconeVectorStore
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_openai import ChatOpenAI
+from langchain_core.runnables import RunnableLambda
+from langchain_openai import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+
+from dotenv import load_dotenv
+import os
 
 # 풍미 요약 생성
-
 def describe_dish_flavor(query):
+    # pass
     prompt = ChatPromptTemplate.from_messages([
         ("system", """
             Persona: You are a highly skilled and perceptive culinary expert with a deep understanding of flavors, aromas, and textures in a wide variety of cuisines. Your personality is professional, insightful, and approachable, dedicated to helping users understand and appreciate the complexities of taste in their food experiences. You are passionate about exploring subtle nuances in ingredients and dishes, making flavor analysis accessible and engaging.
@@ -22,16 +26,19 @@ def describe_dish_flavor(query):
         """)
     ])
 
-    # # image url list
-    # template = []
-    # if query.get("image_urls"):
-    #     template += [{"image_url": image_url} for image_url in query["image_urls"]]
-    # prompt += HumanMessagePromptTemplate.from_template(template)
+    # image url list
+    template = []
+
+    if query.get("image_urls"):
+        template += [{"image_url": image_url} for image_url in query["image_urls"]]
+
+    prompt += HumanMessagePromptTemplate.from_template(template) # type: ignore
 
     llm = ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=4095)
-    chain = prompt | llm | StrOutputParser()
-    return chain.invoke({})
 
+    chain = prompt | llm | StrOutputParser()
+
+    return chain
 
 # 와인 검색
 def search_wines(dish_flavor):
@@ -81,4 +88,21 @@ def recommand_wines(query):
     llm = ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=4095)
     chain = prompt | llm | JsonOutputParser()
 
-    return chain.invoke(query)
+    return chain
+
+# wine pairing 함수
+def wine_pairing(img_urls):
+    r1 = RunnableLambda(describe_dish_flavor)
+    r2 = RunnableLambda(search_wines)
+    r3 = RunnableLambda(recommand_wines)
+
+    chain = r1 | r2 | r3
+    res = chain.invoke({
+        "image_urls": [img_urls]
+    })
+    # 최종결과 return
+    return res
+if __name__ == "__main__":
+    
+    img_urls = 'https://sitem.ssgcdn.com/95/55/96/item/1000346965595_i1_750.jpg'
+    print(wine_pairing(img_urls))
